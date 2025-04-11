@@ -1,11 +1,6 @@
-variable "vpc_id" {
-  description = "ID of the VPC"
+variable "project_name" {
+  description = "Name of the project"
   type        = string
-}
-
-variable "subnet_ids" {
-  description = "List of subnet IDs"
-  type        = list(string)
 }
 
 variable "environment" {
@@ -13,48 +8,33 @@ variable "environment" {
   type        = string
 }
 
-variable "project_name" {
-  description = "Name of the project"
+variable "vpc_id" {
+  description = "ID of the VPC"
   type        = string
+}
+
+variable "private_subnet_ids" {
+  description = "IDs of private subnets"
+  type        = list(string)
 }
 
 variable "key_name" {
-  description = "Name of the SSH key pair"
+  description = "Name of the SSH key pair for EC2 instances"
   type        = string
 }
 
-variable "jenkins_ami" {
-  description = "AMI ID for Jenkins server"
-  type        = string
-  default     = "ami-0c7217cdde317cfec" # Ubuntu 20.04 LTS
-}
-
-variable "jenkins_instance_type" {
-  description = "Instance type for Jenkins server"
+variable "instance_type" {
+  description = "Instance type for the EC2 instances"
   type        = string
   default     = "t3.medium"
 }
 
-variable "nexus_ami" {
-  description = "AMI ID for Nexus server"
+variable "ami_id" {
+  description = "AMI ID for the EC2 instances"
   type        = string
-  default     = "ami-0c7217cdde317cfec" # Ubuntu 20.04 LTS
 }
 
-variable "nexus_instance_type" {
-  description = "Instance type for Nexus server"
+variable "sonarqube_version" {
+  description = "Version of SonarQube to install"
   type        = string
-  default     = "t3.medium"
-}
-
-variable "sonarqube_ami" {
-  description = "AMI ID for SonarQube server"
-  type        = string
-  default     = "ami-0c7217cdde317cfec" # Ubuntu 20.04 LTS
-}
-
-variable "sonarqube_instance_type" {
-  description = "Instance type for SonarQube server"
-  type        = string
-  default     = "t3.medium"
 } 

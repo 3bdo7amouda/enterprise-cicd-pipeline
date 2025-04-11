@@ -1,106 +1,32 @@
 # EKS Cluster
 resource "aws_eks_cluster" "main" {
   name     = var.cluster_name
-  role_arn = aws_iam_role.eks_cluster.arn
   version  = var.cluster_version
+  role_arn = var.eks_cluster_role_arn
 
   vpc_config {
-    subnet_ids              = var.subnet_ids
+    subnet_ids              = var.private_subnet_ids
+    security_group_ids      = [var.eks_security_group_id]
     endpoint_private_access = true
     endpoint_public_access  = true
-    security_group_ids      = [aws_security_group.eks_cluster.id]
   }
-
-  depends_on = [
-    aws_iam_role_policy_attachment.eks_cluster_policy
-  ]
 
   tags = {
     Name        = var.cluster_name
     Environment = var.environment
+    Project     = var.project_name
   }
 }
 
-# EKS Node Group
-resource "aws_eks_node_group" "main" {
-  cluster_name    = aws_eks_cluster.main.name
-  node_group_name = "${var.cluster_name}-node-group"
-  node_role_arn   = aws_iam_role.eks_node_group.arn
-  subnet_ids      = var.subnet_ids
+# Data source for EKS worker AMI
+data "aws_ami" "eks_worker" {
+  most_recent = true
+  owners      = ["amazon"]
 
-  scaling_config {
-    desired_size = var.node_desired_size
-    max_size     = var.node_max_size
-    min_size     = var.node_min_size
+  filter {
+    name   = "name"
+    values = ["amazon-eks-node-${var.cluster_version}-*"]
   }
-
-  instance_types = [var.node_instance_type]
-
-  depends_on = [
-    aws_iam_role_policy_attachment.eks_worker_node_policy,
-    aws_iam_role_policy_attachment.eks_cni_policy,
-    aws_iam_role_policy_attachment.ec2_container_registry
-  ]
-
-  tags = {
-    Name        = "${var.cluster_name}-node-group"
-    Environment = var.environment
-  }
-}
-
-# IAM Roles and Policies
-resource "aws_iam_role" "eks_cluster" {
-  name = "${var.cluster_name}-cluster-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          Service = "eks.amazonaws.com"
-        }
-      }
-    ]
-  })
-}
-
-resource "aws_iam_role" "eks_node_group" {
-  name = "${var.cluster_name}-node-group-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          Service = "ec2.amazonaws.com"
-        }
-      }
-    ]
-  })
-}
-
-resource "aws_iam_role_policy_attachment" "eks_cluster_policy" {
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
-  role       = aws_iam_role.eks_cluster.name
-}
-
-resource "aws_iam_role_policy_attachment" "eks_worker_node_policy" {
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
-  role       = aws_iam_role.eks_node_group.name
-}
-
-resource "aws_iam_role_policy_attachment" "eks_cni_policy" {
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
-  role       = aws_iam_role.eks_node_group.name
-}
-
-resource "aws_iam_role_policy_attachment" "ec2_container_registry" {
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
-  role       = aws_iam_role.eks_node_group.name
 }
 
 # Security Group
@@ -129,4 +55,81 @@ resource "aws_security_group_rule" "eks_cluster_ingress" {
   protocol          = "tcp"
   cidr_blocks       = ["0.0.0.0/0"]
   security_group_id = aws_security_group.eks_cluster.id
+}
+
+# Launch template for node group
+resource "aws_launch_template" "eks_node_group" {
+  name_prefix   = "${var.cluster_name}-node-group-"
+  image_id      = data.aws_ami.eks_worker.id
+  instance_type = var.node_instance_type
+
+  network_interfaces {
+    associate_public_ip_address = false
+    security_groups            = [var.eks_security_group_id]
+  }
+
+  key_name = var.key_name
+
+  tag_specifications {
+    resource_type = "instance"
+    tags = {
+      Name        = "${var.cluster_name}-node"
+      Environment = var.environment
+      Project     = var.project_name
+    }
+  }
+
+  user_data = base64encode(<<-EOF
+              #!/bin/bash
+              /etc/eks/bootstrap.sh ${aws_eks_cluster.main.name}
+              EOF
+  )
+
+  lifecycle {
+    create_before_destroy = true
+  }
+
+  depends_on = [
+    aws_eks_cluster.main,
+    aws_security_group.eks_cluster
+  ]
+}
+
+# EKS Node Group - This will be created last
+resource "aws_eks_node_group" "main" {
+  cluster_name    = aws_eks_cluster.main.name
+  node_group_name = "${var.cluster_name}-node-group"
+  node_role_arn   = var.eks_node_group_role_arn
+  subnet_ids      = var.private_subnet_ids
+
+  scaling_config {
+    desired_size = var.node_desired_size
+    max_size     = var.node_max_size
+    min_size     = var.node_min_size
+  }
+
+  launch_template {
+    name    = aws_launch_template.eks_node_group.name
+    version = aws_launch_template.eks_node_group.latest_version
+  }
+
+  update_config {
+    max_unavailable_percentage = 33
+  }
+
+  tags = {
+    Name        = "${var.cluster_name}-node-group"
+    Environment = var.environment
+    Project     = var.project_name
+  }
+
+  depends_on = [
+    aws_eks_cluster.main,
+    aws_launch_template.eks_node_group,
+    aws_security_group.eks_cluster
+  ]
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }

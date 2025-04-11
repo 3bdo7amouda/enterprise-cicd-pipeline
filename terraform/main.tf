@@ -1,22 +1,14 @@
-terraform {
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.0"
-    }
-  }
-  required_version = ">= 1.2.0"
-  
-  # Temporarily comment out S3 backend until we create the bucket
-  # backend "s3" {
-  #   bucket = "enterprise-cicd-terraform-state"
-  #   key    = "terraform.tfstate"
-  #   region = "us-east-1"
-  # }
-}
-
+# Provider Configuration
 provider "aws" {
   region = var.aws_region
+
+  default_tags {
+    tags = {
+      Environment = var.environment
+      Project     = var.project_name
+      ManagedBy   = "Terraform"
+    }
+  }
 }
 
 # VPC Module
@@ -24,9 +16,27 @@ module "vpc" {
   source = "./modules/vpc"
   
   vpc_cidr             = var.vpc_cidr
+  public_subnet_cidrs  = var.public_subnet_cidrs
+  private_subnet_cidrs = var.private_subnet_cidrs
   availability_zones   = var.availability_zones
-  environment          = var.environment
-  project_name         = var.project_name
+  environment         = var.environment
+  project_name        = var.project_name
+}
+
+# CI/CD Infrastructure Module
+module "cicd_infrastructure" {
+  source = "./modules/cicd"
+  
+  vpc_id              = module.vpc.vpc_id
+  private_subnet_ids  = module.vpc.private_subnet_ids
+  environment         = var.environment
+  project_name        = var.project_name
+  key_name           = var.key_name
+  instance_type      = var.instance_type
+  ami_id             = var.ami_id
+  sonarqube_version  = var.sonarqube_version
+
+  depends_on = [module.vpc]
 }
 
 # EKS Module
@@ -36,9 +46,10 @@ module "eks" {
   cluster_name    = var.cluster_name
   cluster_version = var.cluster_version
   vpc_id          = module.vpc.vpc_id
-  subnet_ids      = module.vpc.private_subnet_ids
+  private_subnet_ids = module.vpc.private_subnet_ids
   environment     = var.environment
   project_name    = var.project_name
+  key_name        = var.key_name
 
   # Node group configuration
   node_instance_type = var.node_instance_type
@@ -46,32 +57,48 @@ module "eks" {
   node_max_size      = var.node_max_size
   node_min_size      = var.node_min_size
 
-  # IAM roles and policies
-  eks_cluster_role_arn     = aws_iam_role.eks_cluster.arn
-  eks_node_group_role_arn  = aws_iam_role.eks_node_group.arn
+  # IAM roles and security group
+  eks_cluster_role_arn    = aws_iam_role.eks_cluster.arn
+  eks_node_group_role_arn = aws_iam_role.eks_node_group.arn
+  eks_security_group_id   = aws_security_group.eks.id
 
-  # Security group
-  eks_security_group_id = aws_security_group.eks.id
-
-  # Policy attachments
-  eks_cluster_policy_attachment_id            = aws_iam_role_policy_attachment.eks_cluster_policy.id
-  eks_service_policy_attachment_id            = aws_iam_role_policy_attachment.eks_service_policy.id
-  eks_worker_node_policy_attachment_id        = aws_iam_role_policy_attachment.eks_worker_node_policy.id
-  eks_cni_policy_attachment_id                = aws_iam_role_policy_attachment.eks_cni_policy.id
-  ec2_container_registry_policy_attachment_id = aws_iam_role_policy_attachment.ec2_container_registry_policy.id
-
-  # Subnet IDs
-  public_subnet_ids  = module.vpc.public_subnet_ids
-  private_subnet_ids = module.vpc.private_subnet_ids
+  # Ensure EKS node group is created last
+  depends_on = [
+    module.vpc,
+    module.cicd_infrastructure,
+    aws_iam_role.eks_cluster,
+    aws_iam_role.eks_node_group,
+    aws_security_group.eks
+  ]
 }
 
-# CI/CD Infrastructure Module
-module "cicd_infrastructure" {
-  source = "./modules/cicd"
-  
-  vpc_id          = module.vpc.vpc_id
-  subnet_ids      = module.vpc.private_subnet_ids
-  environment     = var.environment
-  project_name    = var.project_name
-  key_name        = var.key_name
+# Outputs
+output "vpc_id" {
+  description = "ID of the VPC"
+  value       = module.vpc.vpc_id
+}
+
+output "eks_cluster_endpoint" {
+  description = "Endpoint for EKS control plane"
+  value       = module.eks.cluster_endpoint
+}
+
+output "eks_cluster_id" {
+  description = "ID of the EKS cluster"
+  value       = module.eks.cluster_id
+}
+
+output "jenkins_endpoint" {
+  description = "Public IP address of the Jenkins server"
+  value       = "http://${module.cicd_infrastructure.jenkins_public_ip}"
+}
+
+output "sonarqube_endpoint" {
+  description = "Public IP address of the SonarQube server"
+  value       = "http://${module.cicd_infrastructure.sonarqube_public_ip}"
+}
+
+output "nexus_endpoint" {
+  description = "Public IP address of the Nexus server"
+  value       = "http://${module.cicd_infrastructure.nexus_public_ip}"
 }
