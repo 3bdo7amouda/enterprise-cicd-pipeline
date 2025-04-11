@@ -7,11 +7,12 @@ terraform {
   }
   required_version = ">= 1.2.0"
   
-  backend "s3" {
-    bucket = "enterprise-cicd-terraform-state"
-    key    = "terraform.tfstate"
-    region = "us-east-1"
-  }
+  # Temporarily comment out S3 backend until we create the bucket
+  # backend "s3" {
+  #   bucket = "enterprise-cicd-terraform-state"
+  #   key    = "terraform.tfstate"
+  #   region = "us-east-1"
+  # }
 }
 
 provider "aws" {
@@ -38,6 +39,30 @@ module "eks" {
   subnet_ids      = module.vpc.private_subnet_ids
   environment     = var.environment
   project_name    = var.project_name
+
+  # Node group configuration
+  node_instance_type = var.node_instance_type
+  node_desired_size  = var.node_desired_size
+  node_max_size      = var.node_max_size
+  node_min_size      = var.node_min_size
+
+  # IAM roles and policies
+  eks_cluster_role_arn     = aws_iam_role.eks_cluster.arn
+  eks_node_group_role_arn  = aws_iam_role.eks_node_group.arn
+
+  # Security group
+  eks_security_group_id = aws_security_group.eks.id
+
+  # Policy attachments
+  eks_cluster_policy_attachment_id            = aws_iam_role_policy_attachment.eks_cluster_policy.id
+  eks_service_policy_attachment_id            = aws_iam_role_policy_attachment.eks_service_policy.id
+  eks_worker_node_policy_attachment_id        = aws_iam_role_policy_attachment.eks_worker_node_policy.id
+  eks_cni_policy_attachment_id                = aws_iam_role_policy_attachment.eks_cni_policy.id
+  ec2_container_registry_policy_attachment_id = aws_iam_role_policy_attachment.ec2_container_registry_policy.id
+
+  # Subnet IDs
+  public_subnet_ids  = module.vpc.public_subnet_ids
+  private_subnet_ids = module.vpc.private_subnet_ids
 }
 
 # CI/CD Infrastructure Module
@@ -48,31 +73,5 @@ module "cicd_infrastructure" {
   subnet_ids      = module.vpc.private_subnet_ids
   environment     = var.environment
   project_name    = var.project_name
-}
-
-module "networking" {
-  source              = "./modules/networking"
-  project_name        = var.project_name
-  vpc_cidr            = var.vpc_cidr
-  public_subnet_cidrs = var.public_subnet_cidrs
-  private_subnet_cidrs = var.private_subnet_cidrs
-  availability_zones  = var.availability_zones
-  admin_cidr          = var.admin_cidr
-}
-
-module "iam" {
-  source          = "./modules/iam"
-  project_name    = var.project_name
-  artifact_bucket = var.artifact_bucket
-}
-
-module "ec2" {
-  source                    = "./modules/ec2"
-  project_name              = var.project_name
-  ami_id                    = var.ami_id
-  instance_type             = var.instance_type
-  private_subnet_ids        = module.networking.private_subnet_ids
-  tools_security_group_id   = module.networking.tools_security_group_id
-  tools_instance_profile_name = module.iam.tools_instance_profile_name
-  sonarqube_version         = var.sonarqube_version
+  key_name        = var.key_name
 }
