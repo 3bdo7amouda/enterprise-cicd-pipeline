@@ -36,6 +36,18 @@ module "cicd_infrastructure" {
   ami_id             = var.ami_id
   sonarqube_version  = var.sonarqube_version
 
+  # Pass IAM resources from the centralized iam.tf
+  jenkins_role_arn = aws_iam_role.jenkins.arn
+  jenkins_instance_profile_name = aws_iam_instance_profile.jenkins.name
+  sonarqube_role_arn = aws_iam_role.sonarqube.arn
+  sonarqube_instance_profile_name = aws_iam_instance_profile.sonarqube.name
+  nexus_role_arn = aws_iam_role.nexus.arn
+  nexus_instance_profile_name = aws_iam_instance_profile.nexus.name
+
+  # Ensure S3 buckets are passed correctly
+  artifacts_bucket_name = aws_s3_bucket.artifacts.id
+  cache_bucket_name = aws_s3_bucket.cache.id
+
   depends_on = [module.vpc]
 }
 

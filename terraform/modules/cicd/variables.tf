@@ -37,4 +37,34 @@ variable "ami_id" {
 variable "sonarqube_version" {
   description = "Version of SonarQube to install"
   type        = string
-} 
+}
+
+variable "jenkins_role_arn" {
+  description = "ARN of the Jenkins IAM role"
+  type        = string
+}
+
+variable "jenkins_instance_profile_name" {
+  description = "Name of the Jenkins instance profile"
+  type        = string
+}
+
+variable "sonarqube_role_arn" {
+  description = "ARN of the SonarQube IAM role"
+  type        = string
+}
+
+variable "sonarqube_instance_profile_name" {
+  description = "Name of the SonarQube instance profile"
+  type        = string
+}
+
+variable "nexus_role_arn" {
+  description = "ARN of the Nexus IAM role"
+  type        = string
+}
+
+variable "nexus_instance_profile_name" {
+  description = "Name of the Nexus instance profile"
+  type        = string
+}

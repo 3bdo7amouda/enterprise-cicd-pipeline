@@ -118,6 +118,22 @@ resource "aws_iam_role" "nexus" {
   }
 }
 
+# Instance profiles for EC2 instances
+resource "aws_iam_instance_profile" "jenkins" {
+  name = "${var.project_name}-jenkins-profile"
+  role = aws_iam_role.jenkins.name
+}
+
+resource "aws_iam_instance_profile" "sonarqube" {
+  name = "${var.project_name}-sonarqube-profile"
+  role = aws_iam_role.sonarqube.name
+}
+
+resource "aws_iam_instance_profile" "nexus" {
+  name = "${var.project_name}-nexus-profile"
+  role = aws_iam_role.nexus.name
+}
+
 # Attach required policies to EKS Cluster Role
 resource "aws_iam_role_policy_attachment" "eks_cluster_policy" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
@@ -141,6 +157,11 @@ resource "aws_iam_role_policy_attachment" "ecr_read_only" {
 }
 
 # Attach required policies to Jenkins Role
+resource "aws_iam_role_policy_attachment" "jenkins_eks" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
+  role       = aws_iam_role.jenkins.name
+}
+
 resource "aws_iam_role_policy_attachment" "jenkins_ecr_policy" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess"
   role       = aws_iam_role.jenkins.name
@@ -203,4 +224,4 @@ resource "aws_security_group_rule" "eks_cluster_api" {
   cidr_blocks       = [var.admin_cidr]
   security_group_id = aws_security_group.eks.id
   description       = "Allow HTTPS access to EKS cluster API server"
-} 
+}

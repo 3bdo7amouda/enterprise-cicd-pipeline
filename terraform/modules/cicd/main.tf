@@ -6,7 +6,7 @@ resource "aws_instance" "jenkins" {
   key_name      = var.key_name
 
   vpc_security_group_ids = [aws_security_group.jenkins.id]
-  iam_instance_profile   = aws_iam_instance_profile.jenkins.name
+  iam_instance_profile = var.jenkins_instance_profile_name
 
   user_data = base64encode(<<-EOF
               #!/bin/bash
@@ -35,6 +35,7 @@ resource "aws_instance" "nexus" {
   key_name      = var.key_name
 
   vpc_security_group_ids = [aws_security_group.nexus.id]
+  iam_instance_profile   = var.nexus_instance_profile_name
 
   user_data = base64encode(<<-EOF
               #!/bin/bash
@@ -80,6 +81,7 @@ resource "aws_instance" "sonarqube" {
   key_name      = var.key_name
 
   vpc_security_group_ids = [aws_security_group.sonarqube.id]
+  iam_instance_profile   = var.sonarqube_instance_profile_name
 
   user_data = base64encode(<<-EOF
               #!/bin/bash
@@ -214,110 +216,23 @@ resource "aws_security_group" "sonarqube" {
   }
 }
 
-# S3 bucket for artifacts
-resource "aws_s3_bucket" "artifacts" {
-  bucket = "${var.project_name}-artifacts-${var.environment}"
-  tags = {
-    Name        = "${var.project_name}-artifacts-${var.environment}"
-    Environment = var.environment
-  }
+# Add to modules/cicd/variables.tf
+variable "artifacts_bucket_name" {
+  description = "Name of the artifacts S3 bucket"
+  type        = string
 }
 
-resource "aws_s3_bucket_versioning" "artifacts" {
-  bucket = aws_s3_bucket.artifacts.id
-  versioning_configuration {
-    status = "Enabled"
-  }
+variable "cache_bucket_name" {
+  description = "Name of the cache S3 bucket"
+  type        = string
 }
 
-resource "aws_s3_bucket_server_side_encryption_configuration" "artifacts" {
-  bucket = aws_s3_bucket.artifacts.id
-
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
-    }
-  }
+module "cicd_infrastructure" {
+  source = "./modules/cicd"
+  
+  vpc_id              = module.vpc.vpc_id
+  private_subnet_ids  = module.vpc.private_subnet_ids
+  artifacts_bucket_name = var.artifacts_bucket_name
+  cache_bucket_name     = aws_s3_bucket.cache.id
+  # ... other parameters
 }
-
-resource "aws_s3_bucket_public_access_block" "artifacts" {
-  bucket = aws_s3_bucket.artifacts.id
-
-  block_public_acls       = true
-  block_public_policy     = true
-  ignore_public_acls      = true
-  restrict_public_buckets = true
-}
-
-# S3 bucket for cache
-resource "aws_s3_bucket" "cache" {
-  bucket = "${var.project_name}-cache-${var.environment}"
-  tags = {
-    Name        = "${var.project_name}-cache-${var.environment}"
-    Environment = var.environment
-  }
-}
-
-resource "aws_s3_bucket_versioning" "cache" {
-  bucket = aws_s3_bucket.cache.id
-  versioning_configuration {
-    status = "Enabled"
-  }
-}
-
-resource "aws_s3_bucket_server_side_encryption_configuration" "cache" {
-  bucket = aws_s3_bucket.cache.id
-
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
-    }
-  }
-}
-
-resource "aws_s3_bucket_public_access_block" "cache" {
-  bucket = aws_s3_bucket.cache.id
-
-  block_public_acls       = true
-  block_public_policy     = true
-  ignore_public_acls      = true
-  restrict_public_buckets = true
-}
-
-# IAM Role for Jenkins
-resource "aws_iam_role" "jenkins" {
-  name = "${var.project_name}-jenkins-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          Service = "ec2.amazonaws.com"
-        }
-      }
-    ]
-  })
-
-  tags = {
-    Name        = "${var.project_name}-jenkins-role"
-    Environment = var.environment
-  }
-}
-
-resource "aws_iam_instance_profile" "jenkins" {
-  name = "${var.project_name}-jenkins-profile"
-  role = aws_iam_role.jenkins.name
-}
-
-resource "aws_iam_role_policy_attachment" "jenkins_eks" {
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
-  role       = aws_iam_role.jenkins.name
-}
-
-resource "aws_iam_role_policy_attachment" "jenkins_s3" {
-  policy_arn = "arn:aws:iam::aws:policy/AmazonS3FullAccess"
-  role       = aws_iam_role.jenkins.name
-} 

@@ -13,16 +13,10 @@ terraform {
 
   backend "s3" {
     bucket         = "enterprise-cicd-terraform-state"  # This will be created below
-    key            = "terraform.tfstate"
+    key            = "global/s3/terraform.tfstate"
     region         = "us-east-1"
     dynamodb_table = "enterprise-cicd-terraform-locks"  # This will be created below
     encrypt        = true
-
-    # Enable state locking
-    enable_locking = true
-
-    # Enable state file versioning
-    versioning = true
   }
 }
 
@@ -87,4 +81,4 @@ resource "aws_dynamodb_table" "terraform_locks" {
     Environment = var.environment
     Project     = var.project_name
   }
-} 
+}
