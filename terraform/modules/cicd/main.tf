@@ -148,16 +148,16 @@ resource "aws_security_group" "jenkins" {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "SSH access"
+    cidr_blocks = [var.admin_cidr]
+    description = "SSH access from admin CIDR"
   }
   
   ingress {
     from_port   = 8080
     to_port     = 8080
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "Jenkins web interface"
+    cidr_blocks = [var.admin_cidr]
+    description = "Jenkins web interface from admin CIDR"
   }
   
   egress {
@@ -184,16 +184,16 @@ resource "aws_security_group" "nexus" {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "SSH access"
+    cidr_blocks = [var.admin_cidr]
+    description = "SSH access from admin CIDR"
   }
   
   ingress {
     from_port   = 8081
     to_port     = 8081
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "Nexus web interface"
+    cidr_blocks = [var.admin_cidr]
+    description = "Nexus web interface from admin CIDR"
   }
   
   egress {
@@ -220,16 +220,16 @@ resource "aws_security_group" "sonarqube" {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "SSH access"
+    cidr_blocks = [var.admin_cidr]
+    description = "SSH access from admin CIDR"
   }
   
   ingress {
     from_port   = 9000
     to_port     = 9000
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "SonarQube web interface"
+    cidr_blocks = [var.admin_cidr]
+    description = "SonarQube web interface from admin CIDR"
   }
   
   egress {
@@ -243,33 +243,5 @@ resource "aws_security_group" "sonarqube" {
   tags = {
     Name        = "${var.project_name}-sonarqube-sg"
     Environment = var.environment
-  }
-}
-
-# Elastic IPs for public-facing services
-resource "aws_eip" "jenkins" {
-  domain = "vpc"  
-  tags = {
-    Name        = "${var.project_name}-jenkins-eip"
-    Environment = var.environment
-    Project     = var.project_name
-  }
-}
-
-resource "aws_eip" "nexus" {
-  domain = "vpc"  
-  tags = {
-    Name        = "${var.project_name}-nexus-eip"
-    Environment = var.environment
-    Project     = var.project_name
-  }
-}
-
-resource "aws_eip" "sonarqube" {
-  domain = "vpc"  
-  tags = {
-    Name        = "${var.project_name}-sonarqube-eip"
-    Environment = var.environment
-    Project     = var.project_name
   }
 }

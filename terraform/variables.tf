@@ -27,7 +27,7 @@ variable "key_name" {
 variable "vpc_cidr" {
   description = "CIDR block for the VPC"
   type        = string
-  default     = "10.0.0.0/16"  # This gives you 65,536 IP addresses to work with
+  default     = "10.0.0.0/16"  
 }
 
 # Option 1: Explicitly define subnet CIDRs (recommended for production)
@@ -83,7 +83,7 @@ variable "cluster_version" {
 variable "node_instance_types" {
   description = "EC2 instance types for the EKS node group"
   type        = list(string)
-  default     = ["t3.small"]  # Changed from t3.micro to t3.small (minimum recommended)
+  default     = ["t3.small"] 
 }
 
 variable "node_desired_capacity" {
@@ -104,23 +104,11 @@ variable "node_min_capacity" {
   default     = 1
 }
 
-variable "node_group_dependencies" {
-  description = "List of resources the node group depends on (not used for depends_on)"
-  type        = list(any)
-  default     = []
-}
-
 # CI/CD Infrastructure Variables
 variable "artifacts_bucket_name" {
   description = "Name of the S3 bucket for storing artifacts"
   type        = string
   default     = null  
-}
-
-variable "artifact_bucket" {
-  description = "Name of the S3 bucket for storing artifacts"
-  type        = string
-  default     = null
 }
 
 variable "admin_cidr" {

@@ -7,223 +7,318 @@ This repository contains the Terraform configuration for setting up a complete e
 The infrastructure consists of three main components:
 
 ### 1. Networking (VPC Module)
-- VPC with public and private subnets across multiple AZs
-- Internet Gateway for public subnets
-- NAT Gateway for private subnets
-- Route tables and security groups
-- Network ACLs for additional security
+- VPC with public and private subnets across multiple Availability Zones
+- Internet Gateway for public subnet internet access
+- NAT Gateway for private subnet outbound connectivity
+- Route tables for traffic management
+- Security groups for granular traffic control
+- Network ACLs for additional security layer
 
 ### 2. CI/CD Tools (CICD Module)
 - Jenkins server for continuous integration and deployment
-- SonarQube server for code quality analysis
-- Nexus repository manager for artifact storage
-- S3 bucket for additional artifact storage
-- IAM roles and security groups for each service
-- All services deployed in private subnets with controlled access
+- SonarQube server for code quality analysis and security scanning
+- Nexus Repository Manager for artifact storage and dependency management
+- S3 buckets for artifact storage with versioning and encryption
+- IAM roles and security groups for each service with least-privilege access
+- All services deployed in private subnets with controlled access through bastion or VPN
 
 ### 3. Kubernetes Platform (EKS Module)
 - Amazon EKS cluster for container orchestration
-- Managed node groups with t3.micro/t2.micro instances using SPOT pricing
-- Private networking with VPC integration
+- Managed node groups with configurable instance types 
+- Support for both On-Demand and Spot instances for cost optimization
+- Private networking with secure VPC integration
 - IAM roles and security groups for cluster and nodes
 - Proper dependencies to ensure correct resource creation order
 
 ## Prerequisites
 
-Before running Terraform, you must manually create the S3 bucket and DynamoDB table for state management:
+Before deploying this infrastructure, you need:
 
-1. Run the provided setup script:
-   ```bash
-   chmod +x terraform-setup.sh
-   ./terraform-setup.sh
-```
+1. AWS CLI installed and configured with appropriate permissions
+2. Terraform v1.0.0+ installed
+3. A valid SSH key pair for secure server access
+4. An understanding of AWS networking concepts
+5. Sufficient AWS quotas for the services being deployed
 
-## Quick Start
+## Deployment Instructions
 
-### 1. Set Up Terraform State Management (REQUIRED FIRST STEP)
+### Step 1: Set Up Terraform State Management
 
-You must create an S3 bucket and DynamoDB table manually for state management:
+Terraform state must be properly managed to allow team collaboration and state locking. Run the provided setup script:
 
 ```bash
-# Create S3 bucket for state storage
-aws s3 mb s3://enterprise-cicd-terraform-state --region us-east-1
+# Make the setup script executable
+chmod +x terraform-setup.sh
 
-# Enable versioning on the bucket
-aws s3api put-bucket-versioning \
-  --bucket enterprise-cicd-terraform-state \
-  --versioning-configuration Status=Enabled
-
-# Enable encryption on the bucket
-aws s3api put-bucket-encryption \
-  --bucket enterprise-cicd-terraform-state \
-  --server-side-encryption-configuration '{
-    "Rules": [
-      {
-        "ApplyServerSideEncryptionByDefault": {
-          "SSEAlgorithm": "AES256"
-        }
-      }
-    ]
-  }'
-
-# Block public access to the bucket
-aws s3api put-public-access-block \
-  --bucket enterprise-cicd-terraform-state \
-  --public-access-block-configuration "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"
-
-# Create DynamoDB table for state locking
-aws dynamodb create-table \
-  --table-name enterprise-cicd-terraform-locks \
-  --attribute-definitions AttributeName=LockID,AttributeType=S \
-  --key-schema AttributeName=LockID,KeyType=HASH \
-  --billing-mode PAY_PER_REQUEST \
-  --region us-east-1
+# Run the setup script to create S3 bucket and DynamoDB table
+./terraform-setup.sh
 ```
 
-### 2. Clone the Repository
+The script performs the following actions:
+- Creates an S3 bucket for state storage with encryption and versioning
+- Configures bucket to block all public access
+- Creates a DynamoDB table for state locking
+- Configures backend settings for the project
+
+### Step 2: Configure Variables
+
+1. Create a `terraform.tfvars` file based on the example:
+
 ```bash
-git clone <repository-url>
-cd terraform
+# Create your variables file
+cp terraform.tfvars.example terraform.tfvars
+
+# Edit the file with your settings
+nano terraform.tfvars
 ```
 
-### 3. Configure Variables
-- Copy `terraform.tfvars.example` to `terraform.tfvars`
-- Update the variables according to your requirements:
-  ```hcl
-  aws_region = "us-east-1"
-  environment = "dev"
-  project_name = "enterprise-cicd"
-  vpc_cidr = "10.0.0.0/16"
-  key_name = "your-key-pair-name"
-  ```
+2. Configure the required and optional variables:
 
-### 4. Initialize and Apply
+```hcl
+# Required Variables
+aws_region         = "us-east-1"
+environment        = "dev"
+project_name       = "enterprise-cicd"
+vpc_cidr           = "10.0.0.0/16"
+key_name           = "enterprise-cicd-key"
+
+# Optional - Set to override defaults
+availability_zones     = ["us-east-1a", "us-east-1b", "us-east-1c"]
+instance_type          = "t3.medium"
+cluster_version        = "1.32"
+node_instance_types    = ["t3.small"]
+admin_cidr             = "10.0.0.0/8"  # Restrict this to your IP/network
+artifacts_bucket_name  = "your-artifacts-bucket-name"
+capacity_type          = "ON_DEMAND"    # ON_DEMAND or SPOT
+```
+
+### Step 3: Initialize Terraform
+
+Initialize Terraform to download providers and modules:
+
 ```bash
 terraform init
-terraform plan
-terraform apply
 ```
 
-## Module Details
+### Step 4: Validate Configuration
 
-### VPC Module (`./modules/vpc`)
-- Creates a VPC with configurable CIDR block
-- Public and private subnets across multiple AZs
-- NAT Gateway for private subnet internet access
-- Security groups and NACLs for network security
+Validate the configuration to catch syntax errors and other issues:
 
-### CI/CD Module (`./modules/cicd`)
-- Deploys Jenkins, SonarQube, and Nexus servers
-- Each service has its own:
-  - Security group with minimal required access
-  - IAM role with necessary permissions
-  - Private subnet placement
-- S3 bucket for artifact storage with versioning enabled
+```bash
+terraform validate
+```
 
-### EKS Module (`./modules/eks`)
-- Managed Kubernetes cluster
-- Node groups with t3.micro/t2.micro instances using SPOT pricing
-- Private networking configuration
-- Cluster and node security groups
-- IAM roles for cluster and node groups
+### Step 5: Review the Execution Plan
+
+Generate and review the execution plan:
+
+```bash
+terraform plan -out=tfplan
+```
+
+Review the plan carefully to ensure:
+- All required resources will be created
+- No unexpected resources will be modified or destroyed
+- Tags and naming conventions are applied correctly
+
+### Step 6: Apply the Configuration
+
+Apply the Terraform configuration to build the infrastructure:
+
+```bash
+terraform apply tfplan
+```
+
+The deployment will take approximately 15-20 minutes. The process creates:
+1. VPC and networking components (5-7 minutes)
+2. IAM roles and security groups (1-2 minutes)
+3. CI/CD servers (5-7 minutes)
+4. EKS cluster and node groups (10-15 minutes)
+
+### Step 7: Accessing Your Infrastructure
+
+After successful deployment, access your infrastructure components:
+
+#### Jenkins Server Access
+```bash
+# Get the private IP of the Jenkins server
+JENKINS_IP=$(terraform output -raw jenkins_private_ip)
+
+# Access Jenkins at:
+# http://${JENKINS_IP}:8080
+```
+
+#### SonarQube Server Access
+```bash
+# Get the private IP of the SonarQube server
+SONARQUBE_IP=$(terraform output -raw sonarqube_private_ip)
+
+# Access SonarQube at:
+# http://${SONARQUBE_IP}:9000
+```
+
+#### Nexus Repository Manager Access
+```bash
+# Get the private IP of the Nexus server
+NEXUS_IP=$(terraform output -raw nexus_private_ip)
+
+# Access Nexus at:
+# http://${NEXUS_IP}:8081
+```
+
+#### EKS Cluster Access
+```bash
+# Update your kubeconfig file
+aws eks update-kubeconfig --region $(terraform output -raw region) --name $(terraform output -raw cluster_name)
+
+# Verify cluster connectivity
+kubectl get nodes
+```
+
+## Detailed Infrastructure Components
+
+### VPC Module
+- **Main VPC**: CIDR range configurable, default 10.0.0.0/16
+- **Public Subnets**: For load balancers and NAT gateways
+- **Private Subnets**: For application workloads and CI/CD tools
+- **Internet Gateway**: Provides internet access for public subnets
+- **NAT Gateway**: Enables outbound internet for resources in private subnets
+- **Route Tables**: Separate tables for public and private subnets
+
+### CI/CD Module
+- **Jenkins Server**:
+  - Running on EC2 in a private subnet
+  - Secured with custom security groups
+  - CI/CD pipeline orchestration
+  - IAM role with required permissions
+
+- **SonarQube Server**:
+  - Code quality and security scanning
+  - PostgreSQL database for persistent storage
+  - Custom security groups limiting access
+  - IAM role with minimal required permissions
+
+- **Nexus Repository Manager**:
+  - Artifact management and storage
+  - Custom security groups limiting access
+  - IAM role for S3 integration
+  - Optimized storage configuration
+
+- **Artifact Storage**:
+  - S3 bucket with versioning enabled
+  - Server-side encryption
+  - Access restricted to CI/CD components
+  - Lifecycle policies for cost management
+
+### EKS Module
+- **EKS Cluster**:
+  - Kubernetes control plane managed by AWS
+  - Private API endpoint with optional public access
+  - CloudWatch logs integration for control plane logs
+  - Custom security groups for cluster components
+
+- **Node Groups**:
+  - Managed node groups for worker nodes
+  - Auto-scaling configuration
+  - Instance type selection for cost optimization
+  - Option to use Spot instances for non-critical workloads
+  - IAM roles with required permissions
 
 ## Security Features
 
-1. **Network Security**
-   - All services in private subnets
-   - Security groups with minimal required access
-   - Network ACLs for additional security layer
+### Network Security
+- **Network Segmentation**: Public and private subnets with appropriate routing
+- **Security Groups**: Principle of least privilege for all components
+- **Network ACLs**: Additional layer of network security
+- **Private Endpoints**: For AWS services to avoid traversing the public internet
 
-2. **Access Control**
-   - IAM roles following principle of least privilege
-   - SSH access restricted to specified CIDR blocks
-   - Security group ingress rules limited to necessary ports
+### Access Control
+- **IAM Roles**: Following the principle of least privilege
+- **SSH Access Control**: Restricted to specified CIDR blocks
+- **Security Group Rules**: Limited to necessary ports and protocols
+- **EKS RBAC**: Role-based access control for Kubernetes resources
 
-3. **Data Security**
-   - S3 bucket with versioning and encryption
-   - Private VPC endpoints for AWS services
-   - No direct internet access to private resources
-
-## Available Endpoints
-
-After successful deployment, you can access:
-
-- Jenkins: http://<jenkins_public_ip>
-- SonarQube: http://<sonarqube_public_ip>
-- Nexus: http://<nexus_public_ip>
-- EKS Cluster: Available through kubectl after configuring kubeconfig
-
-## Terraform State Management
-
-The infrastructure state is managed using:
-- S3 bucket for state storage
-- DynamoDB table for state locking
-- Encryption enabled for state files
-- Versioning enabled for state history
+### Data Security
+- **Encryption at Rest**: S3 buckets with server-side encryption
+- **Encryption in Transit**: TLS for API communications
+- **State File Security**: Encrypted and versioned state in S3
+- **Secret Management**: Systems for managing sensitive information
 
 ## Maintenance and Operations
 
-### Updating Infrastructure
+### Infrastructure Updates
 ```bash
 # Pull latest changes
 git pull
 
 # Plan changes
-terraform plan
+terraform plan -out=tfplan
 
 # Apply changes
-terraform apply
+terraform apply tfplan
 ```
 
-### Scaling
-- EKS node groups can be scaled by modifying:
-  - `node_desired_size`
-  - `node_max_size`
-  - `node_min_size`
-- Instance types can be modified through variables
+### Scaling the Infrastructure
+- **EKS Node Groups**: Adjust desired, min, and max capacity
+- **Instance Types**: Modify for better cost or performance
+- **Subnet Sizing**: Plan for growth with appropriate CIDR blocks
 
-### Backup and Recovery
-- S3 bucket versioning enabled for artifacts
-- AMI backups recommended for EC2 instances
-- EKS cluster state managed by AWS
+### Monitoring and Logging
+- **CloudWatch**: For monitoring EC2 instances and EKS clusters
+- **CloudTrail**: For auditing AWS API calls
+- **EKS Control Plane Logs**: For Kubernetes API server diagnostics
+- **VPC Flow Logs**: For network traffic analysis
 
-## Troubleshooting
-
-1. **VPC/Networking Issues**
-   - Check route tables and NAT Gateway
-   - Verify security group rules
-   - Ensure CIDR ranges don't overlap
-
-2. **EKS Issues**
-   - Verify IAM roles and policies
-   - Check node group status
-   - Review cluster security group rules
-
-3. **CI/CD Tool Access**
-   - Confirm security group ingress rules
-   - Verify instance health
-   - Check route table configurations
+### Disaster Recovery
+- **Terraform State**: Versioned and backed up in S3
+- **Infrastructure as Code**: Enables rapid recovery
+- **Regular Backups**: Recommended for application data
+- **Multi-AZ Architecture**: Provides resilience against AZ failures
 
 ## Cost Optimization
 
-- Use appropriate instance sizes
-- Implement auto-scaling policies
-- Monitor and adjust resources as needed
-- Consider reserved instances for stable workloads
+- **Right-sizing**: Choose appropriate instance types
+- **Auto Scaling**: Scale resources based on demand
+- **Spot Instances**: Use for non-critical workloads
+- **Resource Tagging**: Implement for cost allocation
+- **Reserved Instances**: Consider for stable, long-running workloads
+
+## Troubleshooting
+
+### Common Issues and Solutions
+
+#### VPC/Networking Issues
+- **Connectivity Problems**: Check route tables, NAT Gateway, and security groups
+- **Subnet IP Exhaustion**: Verify CIDR sizing and allocation
+- **Security Group Rules**: Ensure necessary ports are open
+
+#### EKS Issues
+- **Node Group Failure**: Check IAM roles and instance types
+- **API Server Access**: Verify VPC endpoints and security groups
+- **Authentication Problems**: Check AWS CLI configuration and kubeconfig
+
+#### CI/CD Tools Access
+- **Server Unreachable**: Check security group rules and networking
+- **Service Not Starting**: Check user data scripts and instance logs
+- **Permission Issues**: Verify IAM roles and policies
 
 ## Contributing
 
+We welcome contributions to improve this infrastructure:
+
 1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
+2. Create a feature branch: `git checkout -b feature/your-feature`
+3. Commit your changes: `git commit -m 'Add some feature'`
+4. Push to the branch: `git push origin feature/your-feature`
+5. Submit a pull request
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
 
 ## Support
 
-For issues and feature requests:
-1. Check existing issues
-2. Create a new issue with:
-   - Clear description
-   - Steps to reproduce
-   - Expected behavior
-   - Actual behavior
+For questions and support:
+- Create an issue in the project repository
+- Document any bugs with detailed reproduction steps
+- Provide context such as Terraform version and AWS region

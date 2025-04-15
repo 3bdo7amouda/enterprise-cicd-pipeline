@@ -62,35 +62,7 @@ resource "aws_security_group" "eks_nodes" {
   }
 }
 
-# Security group rules for communication between cluster and nodes
-resource "aws_security_group_rule" "cluster_to_nodes" {
-  type                     = "ingress"
-  from_port                = 443
-  to_port                  = 443
-  protocol                 = "tcp"
-  security_group_id        = aws_security_group.eks_nodes.id
-  source_security_group_id = aws_security_group.eks_cluster.id
-}
-
-resource "aws_security_group_rule" "nodes_to_cluster" {
-  type                     = "ingress"
-  from_port                = 443
-  to_port                  = 443
-  protocol                 = "tcp"
-  security_group_id        = aws_security_group.eks_cluster.id
-  source_security_group_id = aws_security_group.eks_nodes.id
-}
-
-resource "aws_security_group_rule" "cluster_to_nodes_all_traffic" {
-  description              = "Allow all traffic from the cluster to the nodes"
-  from_port                = 0
-  to_port                  = 65535
-  protocol                 = "tcp"
-  security_group_id        = aws_security_group.eks_nodes.id
-  source_security_group_id = aws_security_group.eks_cluster.id
-  type                     = "ingress"
-}
-
+# Single security group rule for cluster communication
 resource "aws_security_group_rule" "nodes_to_cluster_all_traffic" {
   description              = "Allow all traffic from the nodes to the cluster"
   from_port                = 0
@@ -111,11 +83,11 @@ resource "aws_eks_cluster" "main" {
     subnet_ids              = var.private_subnet_ids
     security_group_ids      = [aws_security_group.eks_cluster.id]
     endpoint_private_access = true
-    endpoint_public_access  = true  # Ensure this is true for easier debugging
+    endpoint_public_access  = true
   }
 
   # Enable CloudWatch logs for troubleshooting
-  enabled_cluster_log_types = ["api", "audit", "authenticator", "controllerManager", "scheduler"]
+  enabled_cluster_log_types = ["api", "audit"]
 
   tags = {
     Name        = var.cluster_name
@@ -131,10 +103,10 @@ resource "aws_eks_node_group" "main" {
   node_role_arn   = var.eks_node_group_role_arn
   subnet_ids      = var.private_subnet_ids
   
-  # Directly specify instance types (remove launch template)
-  instance_types = ["t3.small"]  # Using t3.small instead of t3.micro
+  # Use the provided instance types
+  instance_types = var.node_instance_types
   
-  # Directly specify disk size
+  # Disk size
   disk_size = 20
   
   # Scaling configuration
@@ -144,21 +116,20 @@ resource "aws_eks_node_group" "main" {
     min_size     = var.node_min_capacity
   }
   
-  # Use spot instances for cost savings
-  capacity_type = "SPOT"
+  # Use configurable capacity type
+  capacity_type = var.capacity_type
   
-  # Simple update configuration
   update_config {
     max_unavailable = 1
   }
 
-  # Default labels
+  # Labels
   labels = {
     "role" = "node"
     "environment" = var.environment
   }
 
-  # Add remote access if needed
+  # SSH access
   remote_access {
     ec2_ssh_key = var.key_name
   }
@@ -168,7 +139,6 @@ resource "aws_eks_node_group" "main" {
     Environment = var.environment
   }
 
-  # Critical: Use dependencies to ensure IAM roles are fully configured
   depends_on = [
     aws_eks_cluster.main
   ]

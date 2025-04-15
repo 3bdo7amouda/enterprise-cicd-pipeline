@@ -1,4 +1,3 @@
-# prerequisites.tf - Keep this for backend configuration but remove any resource creation
 terraform {
   required_providers {
     aws = {

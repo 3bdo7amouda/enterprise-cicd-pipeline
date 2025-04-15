@@ -75,8 +75,13 @@ variable "spot_max_price" {
   default     = null 
 }
 
-variable "node_group_dependencies" {
-  description = "List of resources the node group depends on"
-  type        = list(any)
-  default     = []
+variable "capacity_type" {
+  description = "Capacity type for EC2 instances (ON_DEMAND or SPOT)"
+  type        = string
+  default     = "ON_DEMAND"
+  
+  validation {
+    condition     = contains(["ON_DEMAND", "SPOT"], var.capacity_type)
+    error_message = "Valid values for capacity_type are ON_DEMAND and SPOT."
+  }
 }
