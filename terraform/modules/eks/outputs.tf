@@ -13,22 +13,7 @@ output "cluster_certificate_authority_data" {
   value       = aws_eks_cluster.main.certificate_authority[0].data
 }
 
-output "node_group_id" {
-  description = "ID of the EKS node group"
-  value       = aws_eks_node_group.main.id
-}
-
-output "node_group_arn" {
-  description = "ARN of the EKS node group"
-  value       = aws_eks_node_group.main.arn
-}
-
 output "cluster_security_group_id" {
   description = "Security group ID of the EKS cluster"
   value       = aws_security_group.eks_cluster.id
 }
-
-output "node_group_status" {
-  description = "Status of the EKS node group"
-  value       = aws_eks_node_group.main.status
-} 

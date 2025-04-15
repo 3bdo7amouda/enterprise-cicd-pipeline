@@ -1,9 +1,9 @@
 # S3 Bucket for Artifacts
 resource "aws_s3_bucket" "artifacts" {
-  bucket = var.artifact_bucket
+  bucket = var.artifacts_bucket_name  
 
   tags = {
-    Name        = var.artifact_bucket
+    Name        = var.artifacts_bucket_name  
     Environment = var.environment
     Project     = var.project_name
   }

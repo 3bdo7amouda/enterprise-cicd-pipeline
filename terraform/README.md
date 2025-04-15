@@ -23,53 +23,86 @@ The infrastructure consists of three main components:
 
 ### 3. Kubernetes Platform (EKS Module)
 - Amazon EKS cluster for container orchestration
-- Managed node groups with auto-scaling capabilities
+- Managed node groups with t3.micro/t2.micro instances using SPOT pricing
 - Private networking with VPC integration
 - IAM roles and security groups for cluster and nodes
 - Proper dependencies to ensure correct resource creation order
 
 ## Prerequisites
 
-Before deploying this infrastructure, ensure you have:
+Before running Terraform, you must manually create the S3 bucket and DynamoDB table for state management:
 
-1. **AWS Account and Credentials**
-   - AWS CLI installed and configured
-   - Appropriate IAM permissions to create resources
-
-2. **Required Tools**
-   - Terraform >= 1.2.0
-   - AWS CLI >= 2.0.0
-   - kubectl (for EKS cluster management)
-
-3. **SSH Key Pair**
-   - Create or import an SSH key pair in AWS
-   - This will be used to access EC2 instances
+1. Run the provided setup script:
+   ```bash
+   chmod +x terraform-setup.sh
+   ./terraform-setup.sh
+```
 
 ## Quick Start
 
-1. **Clone the Repository**
-   ```bash
-   git clone <repository-url>
-   cd terraform
-   ```
+### 1. Set Up Terraform State Management (REQUIRED FIRST STEP)
 
-2. **Configure Variables**
-   - Copy `terraform.tfvars.example` to `terraform.tfvars`
-   - Update the variables according to your requirements:
-     ```hcl
-     aws_region = "us-east-1"
-     environment = "dev"
-     project_name = "enterprise-cicd"
-     vpc_cidr = "10.0.0.0/16"
-     key_name = "your-key-pair-name"
-     ```
+You must create an S3 bucket and DynamoDB table manually for state management:
 
-3. **Initialize and Apply**
-   ```bash
-   terraform init
-   terraform plan
-   terraform apply
-   ```
+```bash
+# Create S3 bucket for state storage
+aws s3 mb s3://enterprise-cicd-terraform-state --region us-east-1
+
+# Enable versioning on the bucket
+aws s3api put-bucket-versioning \
+  --bucket enterprise-cicd-terraform-state \
+  --versioning-configuration Status=Enabled
+
+# Enable encryption on the bucket
+aws s3api put-bucket-encryption \
+  --bucket enterprise-cicd-terraform-state \
+  --server-side-encryption-configuration '{
+    "Rules": [
+      {
+        "ApplyServerSideEncryptionByDefault": {
+          "SSEAlgorithm": "AES256"
+        }
+      }
+    ]
+  }'
+
+# Block public access to the bucket
+aws s3api put-public-access-block \
+  --bucket enterprise-cicd-terraform-state \
+  --public-access-block-configuration "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"
+
+# Create DynamoDB table for state locking
+aws dynamodb create-table \
+  --table-name enterprise-cicd-terraform-locks \
+  --attribute-definitions AttributeName=LockID,AttributeType=S \
+  --key-schema AttributeName=LockID,KeyType=HASH \
+  --billing-mode PAY_PER_REQUEST \
+  --region us-east-1
+```
+
+### 2. Clone the Repository
+```bash
+git clone <repository-url>
+cd terraform
+```
+
+### 3. Configure Variables
+- Copy `terraform.tfvars.example` to `terraform.tfvars`
+- Update the variables according to your requirements:
+  ```hcl
+  aws_region = "us-east-1"
+  environment = "dev"
+  project_name = "enterprise-cicd"
+  vpc_cidr = "10.0.0.0/16"
+  key_name = "your-key-pair-name"
+  ```
+
+### 4. Initialize and Apply
+```bash
+terraform init
+terraform plan
+terraform apply
+```
 
 ## Module Details
 
@@ -89,7 +122,7 @@ Before deploying this infrastructure, ensure you have:
 
 ### EKS Module (`./modules/eks`)
 - Managed Kubernetes cluster
-- Node groups with auto-scaling
+- Node groups with t3.micro/t2.micro instances using SPOT pricing
 - Private networking configuration
 - Cluster and node security groups
 - IAM roles for cluster and node groups
@@ -184,10 +217,6 @@ terraform apply
 2. Create a feature branch
 3. Make your changes
 4. Submit a pull request
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
 
 ## Support
 

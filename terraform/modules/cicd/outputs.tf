@@ -14,8 +14,8 @@ output "sonarqube_public_ip" {
 }
 
 output "artifacts_bucket_name" {
-  description = "Name of the S3 bucket for artifacts"
-  value       = aws_s3_bucket.artifacts.id
+  description = "Name of the artifacts S3 bucket"
+  value       = var.artifacts_bucket_name
 }
 
 output "jenkins_security_group_id" {
@@ -35,5 +35,5 @@ output "sonarqube_security_group_id" {
 
 output "jenkins_iam_role_arn" {
   description = "ARN of the Jenkins IAM role"
-  value       = aws_iam_role.jenkins.arn
-} 
+  value       = var.jenkins_role_arn
+}

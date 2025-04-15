@@ -6,11 +6,13 @@ variable "vpc_cidr" {
 variable "public_subnet_cidrs" {
   description = "CIDR blocks for public subnets"
   type        = list(string)
+  default     = []
 }
 
 variable "private_subnet_cidrs" {
   description = "CIDR blocks for private subnets"
   type        = list(string)
+  default     = []
 }
 
 variable "availability_zones" {
@@ -26,4 +28,10 @@ variable "environment" {
 variable "project_name" {
   description = "Name of the project"
   type        = string
-} 
+}
+
+variable "tags" {
+  description = "Additional tags for all resources"
+  type        = map(string)
+  default     = {}
+}

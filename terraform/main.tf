@@ -11,106 +11,96 @@ provider "aws" {
   }
 }
 
+# Data Source for Amazon Linux 2 AMI
+data "aws_ami" "amazon_linux_2" {
+  most_recent = true
+  owners      = ["amazon"]
+  
+  filter {
+    name   = "name"
+    values = ["amzn2-ami-hvm-*-x86_64-gp2"]
+  }
+  
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+}
+
 # VPC Module
 module "vpc" {
   source = "./modules/vpc"
   
-  vpc_cidr             = var.vpc_cidr
-  public_subnet_cidrs  = var.public_subnet_cidrs
+  vpc_cidr            = var.vpc_cidr
+  public_subnet_cidrs = var.public_subnet_cidrs
   private_subnet_cidrs = var.private_subnet_cidrs
-  availability_zones   = var.availability_zones
+  availability_zones  = var.availability_zones
   environment         = var.environment
   project_name        = var.project_name
+  
+  tags = {
+    ManagedBy   = "Terraform"
+    Environment = var.environment
+    Project     = var.project_name
+  }
 }
 
 # CI/CD Infrastructure Module
 module "cicd_infrastructure" {
   source = "./modules/cicd"
   
-  vpc_id              = module.vpc.vpc_id
-  private_subnet_ids  = module.vpc.private_subnet_ids
-  environment         = var.environment
-  project_name        = var.project_name
-  key_name           = var.key_name
-  instance_type      = var.instance_type
-  ami_id             = var.ami_id
-  sonarqube_version  = var.sonarqube_version
-
-  # Pass IAM resources from the centralized iam.tf
-  jenkins_role_arn = aws_iam_role.jenkins.arn
+  # Required variables
+  project_name         = var.project_name
+  environment          = var.environment
+  vpc_id               = module.vpc.vpc_id
+  private_subnet_ids   = module.vpc.private_subnet_ids
+  public_subnet_ids    = module.vpc.public_subnet_ids
+  key_name             = var.key_name
+  admin_cidr           = var.admin_cidr
+  artifacts_bucket_name = var.artifacts_bucket_name
+  
+  ami_id = var.ami_id != null ? var.ami_id : data.aws_ami.amazon_linux_2.id
+  
+  instance_type                = var.instance_type
+  jenkins_role_arn             = aws_iam_role.jenkins.arn
   jenkins_instance_profile_name = aws_iam_instance_profile.jenkins.name
-  sonarqube_role_arn = aws_iam_role.sonarqube.arn
+  sonarqube_role_arn           = aws_iam_role.sonarqube.arn
   sonarqube_instance_profile_name = aws_iam_instance_profile.sonarqube.name
-  nexus_role_arn = aws_iam_role.nexus.arn
-  nexus_instance_profile_name = aws_iam_instance_profile.nexus.name
-
-  # Ensure S3 buckets are passed correctly
-  artifacts_bucket_name = aws_s3_bucket.artifacts.id
-  cache_bucket_name = aws_s3_bucket.cache.id
-
-  depends_on = [module.vpc]
+  nexus_role_arn               = aws_iam_role.nexus.arn
+  nexus_instance_profile_name  = aws_iam_instance_profile.nexus.name
+  
+  depends_on = [
+    module.vpc,
+    aws_s3_bucket.artifacts
+  ]
 }
 
 # EKS Module
 module "eks" {
   source = "./modules/eks"
   
-  cluster_name    = var.cluster_name
-  cluster_version = var.cluster_version
-  vpc_id          = module.vpc.vpc_id
-  private_subnet_ids = module.vpc.private_subnet_ids
-  environment     = var.environment
-  project_name    = var.project_name
-  key_name        = var.key_name
+  cluster_name         = var.cluster_name
+  cluster_version      = var.cluster_version
+  vpc_id               = module.vpc.vpc_id
+  private_subnet_ids   = module.vpc.private_subnet_ids
+  environment          = var.environment
+  project_name         = var.project_name
+  key_name             = var.key_name
 
   # Node group configuration
-  node_instance_type = var.node_instance_type
-  node_desired_size  = var.node_desired_size
-  node_max_size      = var.node_max_size
-  node_min_size      = var.node_min_size
+  node_instance_types   = var.node_instance_types
+  node_desired_capacity = var.node_desired_capacity
+  node_max_capacity     = var.node_max_capacity
+  node_min_capacity     = var.node_min_capacity
 
-  # IAM roles and security group
+  # IAM and security
   eks_cluster_role_arn    = aws_iam_role.eks_cluster.arn
   eks_node_group_role_arn = aws_iam_role.eks_node_group.arn
-  eks_security_group_id   = aws_security_group.eks.id
-
-  # Ensure EKS node group is created last
+  
+  # Dependencies
   depends_on = [
-    module.vpc,
-    module.cicd_infrastructure,
-    aws_iam_role.eks_cluster,
-    aws_iam_role.eks_node_group,
-    aws_security_group.eks
+    aws_iam_role_policy_attachment.node_AmazonEKSWorkerNodePolicy,
+    aws_iam_role_policy_attachment.node_AmazonEKS_CNI_Policy,
+    aws_iam_role_policy_attachment.node_AmazonEC2ContainerRegistryReadOnly
   ]
-}
-
-# Outputs
-output "vpc_id" {
-  description = "ID of the VPC"
-  value       = module.vpc.vpc_id
-}
-
-output "eks_cluster_endpoint" {
-  description = "Endpoint for EKS control plane"
-  value       = module.eks.cluster_endpoint
-}
-
-output "eks_cluster_id" {
-  description = "ID of the EKS cluster"
-  value       = module.eks.cluster_id
-}
-
-output "jenkins_endpoint" {
-  description = "Public IP address of the Jenkins server"
-  value       = "http://${module.cicd_infrastructure.jenkins_public_ip}"
-}
-
-output "sonarqube_endpoint" {
-  description = "Public IP address of the SonarQube server"
-  value       = "http://${module.cicd_infrastructure.sonarqube_public_ip}"
-}
-
-output "nexus_endpoint" {
-  description = "Public IP address of the Nexus server"
-  value       = "http://${module.cicd_infrastructure.nexus_public_ip}"
 }

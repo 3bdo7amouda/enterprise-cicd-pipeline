@@ -3,7 +3,7 @@ resource "aws_iam_role" "eks_cluster" {
   name = "${var.project_name}-eks-cluster-role"
 
   assume_role_policy = jsonencode({
-    Version = "2012-10-17"
+    Version = "2012-10-17"  # Fixed the "=y" typo
     Statement = [
       {
         Action = "sts:AssumeRole"
@@ -16,7 +16,7 @@ resource "aws_iam_role" "eks_cluster" {
   })
 
   tags = {
-    Name        = "${var.project_name}-eks-cluster-role"
+    Name = "${var.project_name}-eks-cluster-role"
     Environment = var.environment
     Project     = var.project_name
   }
@@ -40,9 +40,7 @@ resource "aws_iam_role" "eks_node_group" {
   })
 
   tags = {
-    Name        = "${var.project_name}-eks-node-group-role"
-    Environment = var.environment
-    Project     = var.project_name
+    Name = "${var.project_name}-eks-node-group-role"
   }
 }
 
@@ -140,19 +138,24 @@ resource "aws_iam_role_policy_attachment" "eks_cluster_policy" {
   role       = aws_iam_role.eks_cluster.name
 }
 
-# Attach required policies to EKS Node Group Role
-resource "aws_iam_role_policy_attachment" "eks_worker_node_policy" {
+# IAM Role Policy Attachments for EKS Node Group
+resource "aws_iam_role_policy_attachment" "node_AmazonEKSWorkerNodePolicy" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
   role       = aws_iam_role.eks_node_group.name
 }
 
-resource "aws_iam_role_policy_attachment" "eks_cni_policy" {
+resource "aws_iam_role_policy_attachment" "node_AmazonEKS_CNI_Policy" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
   role       = aws_iam_role.eks_node_group.name
 }
 
-resource "aws_iam_role_policy_attachment" "ecr_read_only" {
+resource "aws_iam_role_policy_attachment" "node_AmazonEC2ContainerRegistryReadOnly" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+  role       = aws_iam_role.eks_node_group.name
+}
+
+resource "aws_iam_role_policy_attachment" "node_AmazonSSMManagedInstanceCore" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
   role       = aws_iam_role.eks_node_group.name
 }
 
@@ -182,46 +185,4 @@ resource "aws_iam_role_policy_attachment" "sonarqube_s3_policy" {
 resource "aws_iam_role_policy_attachment" "nexus_s3_policy" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonS3FullAccess"
   role       = aws_iam_role.nexus.name
-}
-
-# Security Group for EKS
-resource "aws_security_group" "eks" {
-  name        = "${var.project_name}-eks-cluster"
-  description = "Security group for EKS cluster"
-  vpc_id      = module.vpc.vpc_id
-
-  # Allow all inbound traffic from within the VPC
-  ingress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = [var.vpc_cidr]
-    description = "Allow all inbound traffic from within the VPC"
-  }
-
-  # Allow all outbound traffic
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "Allow all outbound traffic"
-  }
-
-  tags = {
-    Name        = "${var.project_name}-eks-cluster"
-    Environment = var.environment
-    Project     = var.project_name
-  }
-}
-
-# Security Group Rule for EKS Cluster API Server
-resource "aws_security_group_rule" "eks_cluster_api" {
-  type              = "ingress"
-  from_port         = 443
-  to_port           = 443
-  protocol          = "tcp"
-  cidr_blocks       = [var.admin_cidr]
-  security_group_id = aws_security_group.eks.id
-  description       = "Allow HTTPS access to EKS cluster API server"
 }
