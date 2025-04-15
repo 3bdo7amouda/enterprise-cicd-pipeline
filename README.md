@@ -404,38 +404,7 @@ The comprehensive disaster recovery strategy includes:
 
 ## Getting Started
 
-Follow these steps to deploy the CI/CD infrastructure:
-
-1. **Clone the repository**
-   ```bash
-   git clone [https://github.com/yourusername/TheUltimate-CI-CD.git](https://github.com/Khaled1771/TheUltimate-CI-CD.git)
-   cd TheUltimate-CI-CD
-   ```
-
-2. **Configure AWS credentials**
-   ```bash
-   aws configure
-   ```
-
-3. **Initialize the backend**
-   ```bash
-   cd terraform
-   chmod +x terraform-setup.sh
-   ./terraform-setup.sh
-   ```
-
-4. **Deploy the infrastructure**
-   ```bash
-   terraform init
-   terraform plan -out=tfplan
-   terraform apply tfplan
-   ```
-
-5. **Access the tools**
-   ```bash
-   # Get the endpoints for your CI/CD tools
-   terraform output
-   ```
+Follow these steps in the readme file at the terraform directory to deploy the CI/CD infrastructure.
 
 ## Contribution Guidelines
 
