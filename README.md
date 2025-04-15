@@ -408,7 +408,7 @@ Follow these steps to deploy the CI/CD infrastructure:
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/TheUltimate-CI-CD.git
+   git clone [https://github.com/yourusername/TheUltimate-CI-CD.git](https://github.com/Khaled1771/TheUltimate-CI-CD.git)
    cd TheUltimate-CI-CD
    ```
 
@@ -449,13 +449,10 @@ We welcome contributions to improve this CI/CD blueprint:
 
 Please ensure your code follows our style guidelines and passes all automated tests.
 
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
 
 ---
 
 <div align="center">
-  <p>Built with ❤️ by Your Organization</p>
+  <p>Built with ❤️</p>
   <p>© 2025 Your Organization. All rights reserved.</p>
 </div>
